@@ -9,7 +9,7 @@ const float SEED_DENSITY = 0.25f;
 // Display
 const int WINDOW_W      = 1920;
 const int WINDOW_H      = 1080;
-const char* WINDOW_NAME = "Conway's Game of Life";
+const char* APP_NAME = "Conway's Game of Life";
 const bool FULLSCREEN   = true;
 
 // Timing
