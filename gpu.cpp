@@ -21,11 +21,23 @@ static EGLContext s_egl_context = EGL_NO_CONTEXT;
 static Display*   s_x11_display  = nullptr;
 static Window     s_x11_window   = 0;
 
+// --- cached uniform locations ---
+static GLint s_loc_pixels_per_cell = -1;
+static GLint s_loc_offset_x = -1;
+static GLint s_loc_offset_y = -1;
+
 void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 
+	// -----------------------------------
+	    // Setup the display and window
+	// -----------------------------------
+
 	s_x11_display = XOpenDisplay(nullptr);
-	if(!s_x11_display) {
-	    std::cout << "Failed to open X display" << std::endl;
+	if(s_x11_display) {
+		std::cout << "X display open successfully" << std::endl;
+	}
+	else {
+		std::cout << "Failed to open X display" << std::endl;
 	    return;
 	}
 
@@ -33,24 +45,48 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    s_x11_display,
 	    RootWindow(s_x11_display, 0),
 	    0, 0,           // x, y position
-	    1920, 1080,     // width, height
+	    WINDOW_W, WINDOW_H,     // width, height
 	    0,              // border width
 	    0,              // border color
 	    0               // background color
 	);
 
+	if(s_x11_window) {
+	    std::cout << "X11 window created successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to create X11 window" << std::endl;
+	    return;
+	}
+	
 	XMapWindow(s_x11_display, s_x11_window);
 	XStoreName(s_x11_display, s_x11_window, APP_NAME);
 	Atom wm_state = XInternAtom(s_x11_display, "_NET_WM_STATE", False);
 	Atom fullscreen = XInternAtom(s_x11_display, "_NET_WM_STATE_FULLSCREEN", False);
 	XChangeProperty(s_x11_display,s_x11_window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)&fullscreen, 1);
 	XFlush(s_x11_display);
+	std::cout << "X11 window mapped and configured" << std::endl;
 
+	// ------------------------------------
+	    // Initialize the GPU connection
+	// ------------------------------------
 
 	// initializing GPU connection
 	s_egl_display = eglGetDisplay((EGLNativeDisplayType)s_x11_display);
+	if(s_egl_display != EGL_NO_DISPLAY) {
+	    std::cout << "EGL display obtained successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to get EGL display" << std::endl;
+	    return;
+	}
+	
 	// pass it by function
 	eglInitialize(s_egl_display, nullptr, nullptr);
+	if(eglInitialize(s_egl_display, nullptr, nullptr) != EGL_FALSE) {
+	    std::cout << "EGL initialized successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to initialize EGL" << std::endl;
+	    return;
+	}
 
 	// Setting up the attributes / GPU configurations
 	EGLint attribs[] = {
@@ -65,16 +101,30 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	EGLint num_configs;
 	// pass it by function	
 	eglChooseConfig(s_egl_display, attribs, &egl_config, 1, &num_configs);
+	if(eglChooseConfig(s_egl_display, attribs, &egl_config, 1, &num_configs) != EGL_FALSE && num_configs > 0) {
+	    std::cout << "EGL config chosen successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to choose EGL config" << std::endl;
+	    return;
+	}
 
+	// ----------------------------------------------
+	    // Setup EGL surface and context
+	// ----------------------------------------------
 
 	// surface handeling
-	EGLSurface s_egl_surface = eglCreateWindowSurface(
+	s_egl_surface = eglCreateWindowSurface(
 	    s_egl_display,
 	    egl_config,
 	    (EGLNativeWindowType)s_x11_window,
     	nullptr
 	);
-
+	if(s_egl_surface != EGL_NO_SURFACE) {
+	    std::cout << "EGL surface created successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to create EGL surface" << std::endl;
+	    return;
+	}
 
 	// create the context (save the settings)
 	EGLint context_attribs[] = {
@@ -87,11 +137,26 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    EGL_NO_CONTEXT,
 	    context_attribs
 	);
+	if(s_egl_surface != EGL_NO_SURFACE) {
+	    std::cout << "EGL surface created successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to create EGL surface" << std::endl;
+	    return;
+	}
 
 
 	// activate connection
 	eglMakeCurrent(s_egl_display, s_egl_surface, s_egl_surface, s_egl_context);
+	if(eglGetError() == EGL_SUCCESS) {
+	    std::cout << "EGL context activated successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to activate EGL context" << std::endl;
+	    return;
+	}
 
+	// --------------------------------------------
+	    // Define the shader strings for the GPU
+	// --------------------------------------------
 
 	// Vertex shader setup
 	// Vertex shader string
@@ -421,52 +486,183 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vs, 1, &vertex_shader, nullptr);
 	glCompileShader(vs);
-	// DEBUGGER -> REMOVE FOR EFFICIENCY
+	// debugger and terminal-output for compiling vertex shader
 	GLint success;
 	glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
-	if(!success) {
-	    char log[512];
-	    glGetShaderInfoLog(vs, 512, nullptr, log);
-	    std::cout << "Vertex shader error: " << log << std::endl;
+	if(success) {
+		std::cout << "Vertex shader successfully compiled" << std::endl;
 	}
-	GLint log_length;
-	glGetShaderiv(vs, GL_INFO_LOG_LENGTH, &log_length);
-	char* log = new char[log_length];
-	glGetShaderInfoLog(vs, log_length, nullptr, log);
-	// ... use log ...
-	delete[] log;
+	else {
+		GLint log_length;
+		glGetShaderiv(vs, GL_INFO_LOG_LENGTH, &log_length);
+		if(log_length > 0) {
+			char* log = new char[log_length];
+		    glGetShaderInfoLog(vs, log_length, nullptr, log);
+		    std::cout << "Vertex shader error: " << log << std::endl;
+	    	delete[] log;
+	    }
+	}
+
 	// compile calc fragment shader
 	GLuint calc_fs = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(calc_fs, 1, &calc_shader, nullptr);
 	glCompileShader(calc_fs);
-	// DEBUGGER -> REMOVE FOR EFFICIENCY
-	glGetShaderiv(calc_fs, GL_COMPILE_STATUS, &success);  // calc_fs not vs
-	if(!success) {
-	    char log[512];
-	    glGetShaderInfoLog(calc_fs, 512, nullptr, log);        // calc_fs not vs
-	    std::cout << "Calc shader error: " << log << std::endl;
+	// debugger and terminal-output for compile calculation fragment shader
+	glGetShaderiv(calc_fs, GL_COMPILE_STATUS, &success);
+	if(success) {
+		std::cout << "Calc fragment shader successfully compiled" << std::endl;
+	}
+	else {
+		GLint log_length;
+		glGetShaderiv(calc_fs, GL_INFO_LOG_LENGTH, &log_length);
+		if(log_length > 0) {
+			char* log = new char[log_length];
+		    glGetShaderInfoLog(calc_fs, log_length, nullptr, log);
+	    	std::cout << "Calc fragment shader error: " << log << std::endl;
+		    delete[] log;
+		}
 	}
 	
 	// compile render fragment shader
 	GLuint render_fs = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(render_fs, 1, &render_shader, nullptr);
 	glCompileShader(render_fs);
-	// DEBUGGER -> REMOVE FOR EFFICIENCY
-	glGetShaderiv(render_fs, GL_COMPILE_STATUS, &success);
-	if(!success) {
-	    char log[512];
 
-	    glGetShaderInfoLog(render_fs, 512, nullptr, log);
-	    std::cout << "Render shader error: " << log << std::endl;
+	// debugger and terminal-output for compiling render fragment shader
+	glGetShaderiv(render_fs, GL_COMPILE_STATUS, &success);
+	if(success) {
+		std::cout << "Render shader successfully compiled" << std::endl;
+	}
+	else {
+		GLint log_length;
+		glGetShaderiv(render_fs, GL_INFO_LOG_LENGTH, &log_length);
+		if(log_length > 0) {
+			char* log = new char[log_length];
+		    glGetShaderInfoLog(render_fs, log_length, nullptr, log);
+	    	std::cout << "Render shader error: " << log << std::endl;
+		    delete[] log;
+		}
 	}
 
-	
-	// linking the Width and length
-	// after glLinkProgram(s_calc_program)
+	// -------------------------------------------------
+	    // Creating shader programs and linking them
+	// -------------------------------------------------
+
+	// link calc program
+	s_calc_program = glCreateProgram();
+	glAttachShader(s_calc_program, vs);
+	glAttachShader(s_calc_program, calc_fs);
+	glLinkProgram(s_calc_program);
+
+	// linking the Width, length and texture to the calculation program
 	glUseProgram(s_calc_program);
 	glUniform1i(glGetUniformLocation(s_calc_program, "u_width"), GRID_W);
-	glUniform1i(glGetUniformLocation(s_calc_program, "u_height"), GRID_H);		
+	glUniform1i(glGetUniformLocation(s_calc_program, "u_height"), GRID_H);			
+	GLint loc = glGetUniformLocation(s_calc_program, "u_game_grid");
+	glUniform1i(loc, 0);
+	
+	// debugger and terminal output for calculation program linking
+	glGetProgramiv(s_calc_program, GL_LINK_STATUS, &success);
+	if(success) {
+		std::cout << "Calculation fragment shader program linked successfully" << std::endl;
+	}
+	
+	else {
+		GLint log_length;
+		glGetProgramiv(s_calc_program, GL_INFO_LOG_LENGTH, &log_length);
+		if(log_length > 0) {
+			char* log = new char[log_length];
+		    glGetProgramInfoLog(s_calc_program, log_length, nullptr, log);
+	    	std::cout << "Linking calculation program error: " << log << std::endl;
+		    delete[] log;
+		}
+	}
+	
+	// link render program
+	s_render_program = glCreateProgram();
+	glAttachShader(s_render_program, vs);
+	glAttachShader(s_render_program, render_fs);
+	glLinkProgram(s_render_program);	
+	// bind texture to slot 0 for render program
+	glUseProgram(s_render_program);
+	loc = glGetUniformLocation(s_render_program, "u_game_grid");
+	glUniform1i(loc, 0);
+	// Terminal output and debugger for linking render program
+	glGetProgramiv(s_render_program, GL_LINK_STATUS, &success);
+	if(success) {
+		std::cout << "render fragment shader program linked successfully." << std::endl;
+	} 
 
+	else {
+		GLint log_length;
+		glGetProgramiv(s_render_program, GL_INFO_LOG_LENGTH, &log_length);
+		if(log_length > 0) {
+			char* log = new char[log_length];
+		    glGetProgramInfoLog(s_render_program, log_length, nullptr, log);
+	    	std::cout << "Linking render program error: " << log << std::endl;
+	    	delete[] log;
+	    }
+	}
+
+
+	// ------------------------------------
+		//   upload texture to gpu
+	// ------------------------------------
+	glGenTextures(1, &s_texture);
+	glBindTexture(GL_TEXTURE_2D, s_texture);
+	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	
+	glTexImage2D(
+	    GL_TEXTURE_2D,
+	    0,
+	    GL_RGBA8UI,
+	    GRID_W, GRID_H,
+	    0,
+	    GL_RGBA_INTEGER,
+	    GL_UNSIGNED_BYTE,
+	    grid_seed.grid.data()
+	);
+
+	GLenum err = glGetError();
+	if(err == GL_NO_ERROR) {
+    	std::cout << "Texture uploaded successfully" << std::endl;
+	} else {
+    	std::cout << "Texture upload error: " << err << std::endl;
+	}
+	
+	// -----------------------------------------------------
+		// Add a Framebuffer (needed to write to texture)
+	// -----------------------------------------------------
+
+	glGenFramebuffers(1, &s_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_fbo);
+	
+	glFramebufferTexture2D(
+	    GL_FRAMEBUFFER,
+	    GL_COLOR_ATTACHMENT0,
+	    GL_TEXTURE_2D,
+	    s_texture,
+	    0
+	);
+	// Terminal output and debugger for the framebuffer
+	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE){
+		std::cout << "Framebuffer successfully created" << std::endl;
+	}
+	else {
+	    std::cout << "FBO creation incomplete!" << std::endl;
+	}
+
+	// cleanup
+	glDeleteShader(vs);
+	glDeleteShader(calc_fs);
+	glDeleteShader(render_fs);
+
+	// successfully run the initialize_gpu() function
+	std::cout << "GPU initialized successfully" << std::endl;
 }
 
 
@@ -488,5 +684,18 @@ void set_tick_rate(Settings& settings) {
 }
 
 void cleanup_gpu() {
-	
+    glDeleteProgram(s_calc_program);
+    glDeleteProgram(s_render_program);
+    glDeleteTextures(1, &s_texture);
+    glDeleteFramebuffers(1, &s_fbo);
+    
+    eglMakeCurrent(s_egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroyContext(s_egl_display, s_egl_context);
+    eglDestroySurface(s_egl_display, s_egl_surface);
+    eglTerminate(s_egl_display);
+    
+    XDestroyWindow(s_x11_display, s_x11_window);
+    XCloseDisplay(s_x11_display);
+    
+    std::cout << "GPU cleaned up successfully" << std::endl;
 }
