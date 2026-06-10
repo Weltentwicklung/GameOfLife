@@ -1,6 +1,5 @@
 #include "gpu.h"
 
-
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <iostream>
@@ -81,7 +80,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	
 	// pass it by function
 	eglInitialize(s_egl_display, nullptr, nullptr);
-	if(eglInitialize(s_egl_display, nullptr, nullptr) != EGL_FALSE) {
+	if(eglGetError() == EGL_SUCCESS) {
 	    std::cout << "EGL initialized successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to initialize EGL" << std::endl;
@@ -101,7 +100,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	EGLint num_configs;
 	// pass it by function	
 	eglChooseConfig(s_egl_display, attribs, &egl_config, 1, &num_configs);
-	if(eglChooseConfig(s_egl_display, attribs, &egl_config, 1, &num_configs) != EGL_FALSE && num_configs > 0) {
+	if(eglGetError() == EGL_SUCCESS) {
 	    std::cout << "EGL config chosen successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to choose EGL config" << std::endl;
@@ -137,10 +136,10 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    EGL_NO_CONTEXT,
 	    context_attribs
 	);
-	if(s_egl_surface != EGL_NO_SURFACE) {
-	    std::cout << "EGL surface created successfully" << std::endl;
+	if(s_egl_context != EGL_NO_CONTEXT) {
+	    std::cout << "EGL context created successfully" << std::endl;
 	} else {
-	    std::cout << "Failed to create EGL surface" << std::endl;
+	    std::cout << "Failed to create EGL context" << std::endl;
 	    return;
 	}
 
@@ -462,15 +461,22 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 		precision lowp isampler2D;
 	    
 	    uniform isampler2D u_game_grid;
+	    uniform int u_pixels_per_cell;
+	    uniform int u_offset_x;
+	    uniform int u_offset_y;
+	    
 	    out vec4 cell_color;
 	    
 	    void main() {
-	        ivec2 pos = ivec2(gl_FragCoord.xy);
-	        ivec4 cell = texelFetch(u_game_grid, pos, 0);
+	        ivec2 cell_pos = ivec2(
+	            int(gl_FragCoord.x) / u_pixels_per_cell + u_offset_x,
+	            int(gl_FragCoord.y) / u_pixels_per_cell + u_offset_y
+	        );
+	        ivec4 cell = texelFetch(u_game_grid, cell_pos, 0);
 	        
 	        int value = (cell.a == 1) ? 
-	        	cell.r : 
-	        	cell.g;
+	            cell.r : 
+	            cell.g;
 	        
 	        cell_color = (value == 1) ? 
 	            vec4(1.0, 1.0, 1.0, 1.0) : 
@@ -554,45 +560,45 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	glAttachShader(s_calc_program, calc_fs);
 	glLinkProgram(s_calc_program);
 
-	// linking the Width, length and texture to the calculation program
-	glUseProgram(s_calc_program);
-	glUniform1i(glGetUniformLocation(s_calc_program, "u_width"), GRID_W);
-	glUniform1i(glGetUniformLocation(s_calc_program, "u_height"), GRID_H);			
-	GLint loc = glGetUniformLocation(s_calc_program, "u_game_grid");
-	glUniform1i(loc, 0);
-	
 	// debugger and terminal output for calculation program linking
 	glGetProgramiv(s_calc_program, GL_LINK_STATUS, &success);
 	if(success) {
-		std::cout << "Calculation fragment shader program linked successfully" << std::endl;
+	    std::cout << "Calculation fragment shader program linked successfully" << std::endl;
+	} else {
+	    GLint log_length;
+	    glGetProgramiv(s_calc_program, GL_INFO_LOG_LENGTH, &log_length);
+	    if(log_length > 0) {
+	        char* log = new char[log_length];
+	        glGetProgramInfoLog(s_calc_program, log_length, nullptr, log);
+	        std::cout << "Linking calculation program error: " << log << std::endl;
+	        delete[] log;
+	    }
+	    return;
 	}
 	
-	else {
-		GLint log_length;
-		glGetProgramiv(s_calc_program, GL_INFO_LOG_LENGTH, &log_length);
-		if(log_length > 0) {
-			char* log = new char[log_length];
-		    glGetProgramInfoLog(s_calc_program, log_length, nullptr, log);
-	    	std::cout << "Linking calculation program error: " << log << std::endl;
-		    delete[] log;
-		}
+	// link uniforms to the calculation program
+	glUseProgram(s_calc_program);
+	glUniform1i(glGetUniformLocation(s_calc_program, "u_width"), GRID_W);
+	glUniform1i(glGetUniformLocation(s_calc_program, "u_height"), GRID_H);
+	GLint loc = glGetUniformLocation(s_calc_program, "u_game_grid");
+	glUniform1i(loc, 0);
+	if(loc != -1) {
+	    std::cout << "Calc program uniforms linked successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to get uniform location for calc program" << std::endl;
+	    return;
 	}
-	
+		
 	// link render program
 	s_render_program = glCreateProgram();
 	glAttachShader(s_render_program, vs);
 	glAttachShader(s_render_program, render_fs);
 	glLinkProgram(s_render_program);	
-	// bind texture to slot 0 for render program
-	glUseProgram(s_render_program);
-	loc = glGetUniformLocation(s_render_program, "u_game_grid");
-	glUniform1i(loc, 0);
-	// Terminal output and debugger for linking render program
 	glGetProgramiv(s_render_program, GL_LINK_STATUS, &success);
+	// Terminal output and debugger for linking render program
 	if(success) {
 		std::cout << "render fragment shader program linked successfully." << std::endl;
 	} 
-
 	else {
 		GLint log_length;
 		glGetProgramiv(s_render_program, GL_INFO_LOG_LENGTH, &log_length);
@@ -602,8 +608,34 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    	std::cout << "Linking render program error: " << log << std::endl;
 	    	delete[] log;
 	    }
+	    return;
+	}
+	
+	// bind texture to slot 0 for render program
+	glUseProgram(s_render_program);
+	loc = glGetUniformLocation(s_render_program, "u_game_grid");
+	glUniform1i(loc, 0);
+	if(loc != -1) {
+	    std::cout << "Render program game grid uniform linked successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to get game grid uniform location for render program" << std::endl;
+	    return;
 	}
 
+	s_loc_pixels_per_cell = glGetUniformLocation(s_render_program, "u_pixels_per_cell");
+	s_loc_offset_x = glGetUniformLocation(s_render_program, "u_offset_x");
+	s_loc_offset_y = glGetUniformLocation(s_render_program, "u_offset_y");
+	
+	glUniform1i(s_loc_pixels_per_cell, settings.pixels_per_cell);
+	glUniform1i(s_loc_offset_x, settings.offset_x);
+	glUniform1i(s_loc_offset_y, settings.offset_y);
+
+	if(s_loc_pixels_per_cell != -1 && s_loc_offset_x != -1 && s_loc_offset_y != -1) {
+	    std::cout << "Render program uniforms linked successfully" << std::endl;
+	} else {
+	    std::cout << "Failed to get uniform locations for render program" << std::endl;
+	    return;
+	}
 
 	// ------------------------------------
 		//   upload texture to gpu
@@ -668,7 +700,18 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 
 void gpu_generation_loop() {  // runs continuously in its own thread
 
-	
+    // calc pass ? render into FBO (updates texture)
+    glBindFramebuffer(GL_FRAMEBUFFER, s_fbo);
+    glUseProgram(s_calc_program);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    
+    // render pass ? render to screen
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glUseProgram(s_render_program);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    
+    // show on screen
+    eglSwapBuffers(s_egl_display, s_egl_surface);
 }
 
 void set_zoom(Settings& settings) {

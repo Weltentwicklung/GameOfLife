@@ -4,7 +4,7 @@
 // Grid
 const int GRID_W        = 1920;
 const int GRID_H        = 1080;
-const float SEED_DENSITY = 0.25f;
+const int SEED_DENSITY = 25;
 
 // Display
 const int WINDOW_W      = 1920;
