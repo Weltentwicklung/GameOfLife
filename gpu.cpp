@@ -715,16 +715,23 @@ void gpu_generation_loop() {  // runs continuously in its own thread
 }
 
 void set_zoom(Settings& settings) {
-	
+	g_settings_mutex.lock();	
+	glUniform1i(s_loc_pixels_per_cell, settings.pixels_per_cell);
+	g_settings_mutex.unlock();
 }
 
 void set_offset(Settings& settings) {
-	
+	g_settings_mutex.lock();	
+	glUniform1i(s_loc_offset_x, settings.offset_x);
+	glUniform1i(s_loc_offset_y, settings.offset_y);
+	g_settings_mutex.unlock();
 }
 
+/*
 void set_tick_rate(Settings& settings) {
 	
-}
+}  --> i think not needed as in the loop timer integrated*/
+
 
 void cleanup_gpu() {
     glDeleteProgram(s_calc_program);

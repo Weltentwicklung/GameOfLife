@@ -48,31 +48,44 @@ void process_input(bool& running, Settings& settings) {
 
         // pan
         if(ev.code == KEY_LEFT) {
+        	g_settings_mutex.lock();
             settings.offset_x = std::max(0, settings.offset_x - step);
+			g_settings_mutex.unlock();
             set_offset(settings);
+            
         } else if(ev.code == KEY_RIGHT) {
+        	g_settings_mutex.lock();
             settings.offset_x = std::min(GRID_W - 1, settings.offset_x + step);
+			g_settings_mutex.unlock();
             set_offset(settings);
         } else if(ev.code == KEY_UP) {
+        	g_settings_mutex.lock();
             settings.offset_y = std::max(0, settings.offset_y - step);
+			g_settings_mutex.unlock();
             set_offset(settings);
         } else if(ev.code == KEY_DOWN) {
+        	g_settings_mutex.lock();
             settings.offset_y = std::min(GRID_H - 1, settings.offset_y + step);
+            g_settings_mutex.unlock();
             set_offset(settings);
         }
 
         // zoom
         else if(ev.code == KEY_KPPLUS) {
+			g_settings_mutex.lock();
             settings.pixels_per_cell = std::min(
                 settings.pixels_per_cell + step,
                 std::min(WINDOW_W, WINDOW_H)
             );
+            g_settings_mutex.unlock();
             set_zoom(settings);
         } else if(ev.code == KEY_KPMINUS) {
+        	g_settings_mutex.lock();
             settings.pixels_per_cell = std::max(
                 settings.pixels_per_cell - step,
                 1
             );
+            g_settings_mutex.unlock();
             set_zoom(settings);
         }
 
@@ -86,14 +99,16 @@ void process_input(bool& running, Settings& settings) {
                 s_ctrl_held  = (ev.value != 0);
             if(ev.code == KEY_LEFTSHIFT || ev.code == KEY_RIGHTSHIFT)
                 s_shift_held = (ev.value != 0);
-            if(ev.code == KEY_ESC && ev.value != 0) { running = false; return; }
+            if(ev.code == KEY_ESC && ev.value != 0) {
+            	running = false; return; 
+            }
         }
         return;
     }
 }
 
 void cleanup_input() {
-    ioctl(s_fd, EVIOCGRAB, 0); // we should call that only on running = 0
+    ioctl(s_fd, EVIOCGRAB, 0);
     close(s_fd);
     std::cout << "Input device released" << std::endl;
 }
