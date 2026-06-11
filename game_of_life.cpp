@@ -12,28 +12,32 @@
 int main(){
 
 	std::thread input_thread;
-	std::thread gpu_thread;
+	std::thread generation_thread;
 
-	bool running = true;
+	std::atomic<bool> running = true;
 
 	// maybe setting up everything outside of the loop?
 	// create a seed, for now std seed
 	GridSeed initial_seed = generate_random_seed(GRID_W, GRID_H, SEED_DENSITY);
-	Settings initial_settings;
-	initial_settings.offset_y = 0;
-	initial_settings.offset_x = 0;
-	initial_settings.pixel_per_cell = 1;
-	initial_settings.generation_loop_ms = 200;
+	Settings settings;
+	settings.offset_y = 0;
+	settings.offset_x = 0;
+	settings.pixels_per_cell = 1;
+	settings.generation_loop_ms = 200;
 	
-	start_gpu(initial_seed, initial_settings);
+	if(!initialize_input()) return 1;
+	if(!initialize_gpu(initial_seed, initial_settings)) {
+	    cleanup_input();
+	    return 1;
+	}
 
-	input_thread = std::thread([]()) {
+	input_thread = std::thread([&]) {
 		while(running){
 			//set loop timer
 			auto loop_start = std::chrono::steady_clock::now();
 
 		//check input and or checking gpu
-			process_input(&running, settings);
+			process_input(running, settings);
 
 		// calculate remaining time and execute sleep for it
 			auto elapsed_time = std::chrono::steady_clock::now() - loop_start;
@@ -42,17 +46,25 @@ int main(){
 			if (sleep_time > std::chrono::milliseconds(0)){
 				std::this_thread::sleep_for(sleep_time);
 			}
-		}
-
-		return 0; // would return 0 be right here ??? actually i think it's wrong
-		// we dont wanna terminate main here, we need to join and destroy both threads properly
-		// so we could use a input_thread.join() here or just leave and use it outside...
-			
-				
+		}	
 	}
 
-	generation_thread = std::thread([]()) {
-		
+	generation_thread = std::thread([&]) {
+		while(running){
+			//set loop timer
+			auto loop_start = std::chrono::steady_clock::now();
+	
+			gpu_generation_loop();
+
+			// calculate remaining time and execute sleep for it
+			auto elapsed_time = std::chrono::steady_clock::now() - loop_start;
+			g_settings_mutex.lock();
+			auto sleep_time = std::chrono::milliseconds(settings.generation_loop_ms) - elapsed_time;
+			g_settings_mutex.unlock();	
+			if (sleep_time > std::chrono::milliseconds(0)){
+				std::this_thread::sleep_for(sleep_time);
+			}
+		}
 	}
 
 	input_thread.join();

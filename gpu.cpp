@@ -25,7 +25,7 @@ static GLint s_loc_pixels_per_cell = -1;
 static GLint s_loc_offset_x = -1;
 static GLint s_loc_offset_y = -1;
 
-void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
+bool initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 
 	// -----------------------------------
 	    // Setup the display and window
@@ -37,7 +37,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	}
 	else {
 		std::cout << "Failed to open X display" << std::endl;
-	    return;
+	    return false;
 	}
 
 	s_x11_window = XCreateSimpleWindow(
@@ -54,7 +54,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "X11 window created successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to create X11 window" << std::endl;
-	    return;
+	    return false;
 	}
 	
 	XMapWindow(s_x11_display, s_x11_window);
@@ -75,7 +75,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "EGL display obtained successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to get EGL display" << std::endl;
-	    return;
+	    return false;
 	}
 	
 	// pass it by function
@@ -84,7 +84,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "EGL initialized successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to initialize EGL" << std::endl;
-	    return;
+	    return false;
 	}
 
 	// Setting up the attributes / GPU configurations
@@ -104,7 +104,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "EGL config chosen successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to choose EGL config" << std::endl;
-	    return;
+	    return false;
 	}
 
 	// ----------------------------------------------
@@ -122,7 +122,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "EGL surface created successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to create EGL surface" << std::endl;
-	    return;
+	    return false;
 	}
 
 	// create the context (save the settings)
@@ -140,7 +140,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "EGL context created successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to create EGL context" << std::endl;
-	    return;
+	    return false;
 	}
 
 
@@ -150,7 +150,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "EGL context activated successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to activate EGL context" << std::endl;
-	    return;
+	    return false;
 	}
 
 	// --------------------------------------------
@@ -205,7 +205,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
         				texelFetch(u_game_grid, ivec2(u_width - 1, 1), 0).r +
 	        			texelFetch(u_game_grid, ivec2(0, 1), 0).r +
     	    			texelFetch(u_game_grid, ivec2(1, 1), 0).r;
-			}
+				}
 	
 				// top-right corner
 				else if(pos.x == u_width - 1 && pos.y == 0) {
@@ -507,6 +507,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 		    std::cout << "Vertex shader error: " << log << std::endl;
 	    	delete[] log;
 	    }
+	    return false;
 	}
 
 	// compile calc fragment shader
@@ -527,6 +528,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    	std::cout << "Calc fragment shader error: " << log << std::endl;
 		    delete[] log;
 		}
+		return false;
 	}
 	
 	// compile render fragment shader
@@ -548,6 +550,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    	std::cout << "Render shader error: " << log << std::endl;
 		    delete[] log;
 		}
+		return false;
 	}
 
 	// -------------------------------------------------
@@ -573,7 +576,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	        std::cout << "Linking calculation program error: " << log << std::endl;
 	        delete[] log;
 	    }
-	    return;
+	    return false;
 	}
 	
 	// link uniforms to the calculation program
@@ -586,7 +589,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "Calc program uniforms linked successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to get uniform location for calc program" << std::endl;
-	    return;
+	    return false;
 	}
 		
 	// link render program
@@ -608,7 +611,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    	std::cout << "Linking render program error: " << log << std::endl;
 	    	delete[] log;
 	    }
-	    return;
+	    return false;
 	}
 	
 	// bind texture to slot 0 for render program
@@ -619,7 +622,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "Render program game grid uniform linked successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to get game grid uniform location for render program" << std::endl;
-	    return;
+	    return false;
 	}
 
 	s_loc_pixels_per_cell = glGetUniformLocation(s_render_program, "u_pixels_per_cell");
@@ -634,13 +637,14 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	    std::cout << "Render program uniforms linked successfully" << std::endl;
 	} else {
 	    std::cout << "Failed to get uniform locations for render program" << std::endl;
-	    return;
+	    return false;
 	}
 
 	// ------------------------------------
 		//   upload texture to gpu
 	// ------------------------------------
 	glGenTextures(1, &s_texture);
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, s_texture);
 	
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -664,6 +668,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
     	std::cout << "Texture uploaded successfully" << std::endl;
 	} else {
     	std::cout << "Texture upload error: " << err << std::endl;
+    	return false;
 	}
 	
 	// -----------------------------------------------------
@@ -686,6 +691,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	}
 	else {
 	    std::cout << "FBO creation incomplete!" << std::endl;
+	    return false;
 	}
 
 	// cleanup
@@ -695,6 +701,7 @@ void initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 
 	// successfully run the initialize_gpu() function
 	std::cout << "GPU initialized successfully" << std::endl;
+	return true;
 }
 
 
@@ -704,6 +711,8 @@ void gpu_generation_loop() {  // runs continuously in its own thread
     glBindFramebuffer(GL_FRAMEBUFFER, s_fbo);
     glUseProgram(s_calc_program);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glFinish(); // ensures the CPU waits in between the steps
     
     // render pass ? render to screen
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -726,12 +735,6 @@ void set_offset(Settings& settings) {
 	glUniform1i(s_loc_offset_y, settings.offset_y);
 	g_settings_mutex.unlock();
 }
-
-/*
-void set_tick_rate(Settings& settings) {
-	
-}  --> i think not needed as in the loop timer integrated*/
-
 
 void cleanup_gpu() {
     glDeleteProgram(s_calc_program);
