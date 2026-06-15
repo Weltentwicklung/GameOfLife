@@ -2,11 +2,13 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include "constants.h"
 #include "grid_seed.h"
 #include "seed_generator.h"
 #include "settings.h"
 #include "gpu.h"
+#include "input.h"
 
 
 int main(){
@@ -22,16 +24,16 @@ int main(){
 	Settings settings;
 	settings.offset_y = 0;
 	settings.offset_x = 0;
-	settings.pixels_per_cell = 1;
+	settings.pixels_per_cell = 10;
 	settings.generation_loop_ms = 200;
 	
-	if(!initialize_input()) return 1;
-	if(!initialize_gpu(initial_seed, initial_settings)) {
-	    cleanup_input();
-	    return 1;
-	}
+	input_thread = std::thread([&]() {
 
-	input_thread = std::thread([&]) {
+		if(!initialize_input()) {
+			running = false;
+			return;
+		}
+		
 		while(running){
 			//set loop timer
 			auto loop_start = std::chrono::steady_clock::now();
@@ -47,14 +49,20 @@ int main(){
 				std::this_thread::sleep_for(sleep_time);
 			}
 		}	
-	}
+	});
 
-	generation_thread = std::thread([&]) {
+	generation_thread = std::thread([&]() {
+
+		if(!initialize_gpu(settings, initial_seed)) {
+    		running = false;
+	    	return;
+    	}
+	   			
 		while(running){
 			//set loop timer
 			auto loop_start = std::chrono::steady_clock::now();
 	
-			gpu_generation_loop();
+			gpu_generation_loop(settings);
 
 			// calculate remaining time and execute sleep for it
 			auto elapsed_time = std::chrono::steady_clock::now() - loop_start;
@@ -65,7 +73,7 @@ int main(){
 				std::this_thread::sleep_for(sleep_time);
 			}
 		}
-	}
+	});
 
 	input_thread.join();
 	generation_thread.join();

@@ -24,7 +24,7 @@ bool initialize_input() {
     return true;
 }
 
-void process_input(bool& running, Settings& settings) {
+void process_input(std::atomic<bool>& running, Settings& settings) {
     struct input_event ev;
     
     while(read(s_fd, &ev, sizeof(ev)) == sizeof(ev)) {
@@ -55,22 +55,18 @@ void process_input(bool& running, Settings& settings) {
             g_settings_mutex.lock();
             settings.offset_x = std::max(0, settings.offset_x - step);
             g_settings_mutex.unlock();
-            set_offset(settings);
         } else if(ev.code == KEY_RIGHT || ev.code == KEY_D) {
             g_settings_mutex.lock();
             settings.offset_x = std::min(GRID_W - 1, settings.offset_x + step);
             g_settings_mutex.unlock();
-            set_offset(settings);
         } else if(ev.code == KEY_UP || ev.code == KEY_W) {
             g_settings_mutex.lock();
             settings.offset_y = std::max(0, settings.offset_y - step);
             g_settings_mutex.unlock();
-            set_offset(settings);
         } else if(ev.code == KEY_DOWN || ev.code == KEY_S) {
             g_settings_mutex.lock();
             settings.offset_y = std::min(GRID_H - 1, settings.offset_y + step);
             g_settings_mutex.unlock();
-            set_offset(settings);
         }
 
         // zoom
@@ -81,7 +77,6 @@ void process_input(bool& running, Settings& settings) {
                 std::min(WINDOW_W, WINDOW_H)
             );
             g_settings_mutex.unlock();
-            set_zoom(settings);
         } else if(ev.code == KEY_KPMINUS || ev.code == KEY_E) {
             g_settings_mutex.lock();
             settings.pixels_per_cell = std::max(
@@ -89,7 +84,6 @@ void process_input(bool& running, Settings& settings) {
                 1
             );
             g_settings_mutex.unlock();
-            set_zoom(settings);
         }
 
         // tick rate

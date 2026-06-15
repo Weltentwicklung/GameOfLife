@@ -628,6 +628,8 @@ bool initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	s_loc_pixels_per_cell = glGetUniformLocation(s_render_program, "u_pixels_per_cell");
 	s_loc_offset_x = glGetUniformLocation(s_render_program, "u_offset_x");
 	s_loc_offset_y = glGetUniformLocation(s_render_program, "u_offset_y");
+
+	std::cout << "pixels_per_cell = " << settings.pixels_per_cell << std::endl; // TODO Debugger -> delete afterwards
 	
 	glUniform1i(s_loc_pixels_per_cell, settings.pixels_per_cell);
 	glUniform1i(s_loc_offset_x, settings.offset_x);
@@ -705,7 +707,13 @@ bool initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 }
 
 
-void gpu_generation_loop() {  // runs continuously in its own thread
+void gpu_generation_loop(Settings& settings) {  // runs continuously in its own thread
+
+	g_settings_mutex.lock();
+	glUniform1i(s_loc_offset_x, settings.offset_x);
+	glUniform1i(s_loc_offset_y, settings.offset_y);
+	glUniform1i(s_loc_pixels_per_cell, settings.pixels_per_cell);
+	g_settings_mutex.unlock();
 
     // calc pass ? render into FBO (updates texture)
     glBindFramebuffer(GL_FRAMEBUFFER, s_fbo);
@@ -721,19 +729,6 @@ void gpu_generation_loop() {  // runs continuously in its own thread
     
     // show on screen
     eglSwapBuffers(s_egl_display, s_egl_surface);
-}
-
-void set_zoom(Settings& settings) {
-	g_settings_mutex.lock();	
-	glUniform1i(s_loc_pixels_per_cell, settings.pixels_per_cell);
-	g_settings_mutex.unlock();
-}
-
-void set_offset(Settings& settings) {
-	g_settings_mutex.lock();	
-	glUniform1i(s_loc_offset_x, settings.offset_x);
-	glUniform1i(s_loc_offset_y, settings.offset_y);
-	g_settings_mutex.unlock();
 }
 
 void cleanup_gpu() {
