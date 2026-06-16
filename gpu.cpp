@@ -701,7 +701,7 @@ bool initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	glDeleteShader(calc_fs);
 	glDeleteShader(render_fs);
 
-	// set the cursor position to the middle (needed to syoc the cursor)
+	// set the cursor position to the middle (needed to sync the cursor)
 	XWarpPointer(s_x11_display, None, s_x11_window, 0, 0, 0, 0, WINDOW_W/2, WINDOW_H/2);
 	XFlush(s_x11_display);
 
@@ -710,7 +710,6 @@ bool initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 
 	return true;
 }
-
 
 void gpu_generation_loop(Settings& settings) {  // runs continuously in its own thread
 
@@ -752,4 +751,10 @@ void cleanup_gpu() {
     XCloseDisplay(s_x11_display);
     
     std::cout << "GPU cleaned up successfully" << std::endl;
+}
+
+void update_cursor(int x, int y) {
+	if(!s_x11_display || !s_x11_window) return;
+	XWarpPointer(s_x11_display, None, s_x11_window, 0, 0, 0, 0, x, y);
+	XFlush(s_x11_display);
 }
