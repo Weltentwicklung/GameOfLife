@@ -701,8 +701,13 @@ bool initialize_gpu(Settings& settings, GridSeed& grid_seed) {
 	glDeleteShader(calc_fs);
 	glDeleteShader(render_fs);
 
+	// set the cursor position to the middle (needed to syoc the cursor)
+	XWarpPointer(s_x11_display, None, s_x11_window, 0, 0, 0, 0, WINDOW_W/2, WINDOW_H/2);
+	XFlush(s_x11_display);
+
 	// successfully run the initialize_gpu() function
 	std::cout << "GPU initialized successfully" << std::endl;
+
 	return true;
 }
 
@@ -729,6 +734,7 @@ void gpu_generation_loop(Settings& settings) {  // runs continuously in its own 
     
     // show on screen
     eglSwapBuffers(s_egl_display, s_egl_surface);
+
 }
 
 void cleanup_gpu() {
