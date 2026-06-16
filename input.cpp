@@ -59,8 +59,6 @@ void process_input(std::atomic<bool>& running, Settings& settings) {
 
 	// step 1: update cursor position from all pending mouse events
 	while(read(s_mouse_fd, &ev, sizeof(ev)) == sizeof(ev)) {
-		if(ev.type != EV_SYN)
-    	    std::cout << "mouse ev type=" << ev.type << " code=" << ev.code << " value=" << ev.value << std::endl; // DELETE AFTER DEBUGGING WITH IF STATEMENT
 	    if(ev.type == EV_REL) {
 	        if(ev.code == REL_X) s_cursor_x = std::clamp(s_cursor_x + ev.value, 0, WINDOW_W - 1);
 	        if(ev.code == REL_Y) s_cursor_y = std::clamp(s_cursor_y + ev.value, 0, WINDOW_H - 1);
@@ -174,9 +172,7 @@ void process_input(std::atomic<bool>& running, Settings& settings) {
         }
     }
 
-    if(key_processed == false && wheel != 0) {
-    std::cout << "mouse ev type=" << ev.type << " code=" << ev.code << " value=" << ev.value << std::endl; // DELETE AFTER DEBUGGING
-    
+    if(key_processed == false && wheel != 0) {    
     	g_settings_mutex.lock();
     	int old_ppc = settings.pixels_per_cell;
     	if(wheel > 0) {
@@ -195,6 +191,7 @@ void process_input(std::atomic<bool>& running, Settings& settings) {
 }
 
 void cleanup_input() {
+    
     ioctl(s_keyboard_fd, EVIOCGRAB, 0);
     ioctl(s_mouse_fd, EVIOCGRAB, 0);
     close(s_keyboard_fd);

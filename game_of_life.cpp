@@ -20,11 +20,11 @@ int main(){
 
 	// maybe setting up everything outside of the loop?
 	// create a seed, for now std seed
-	GridSeed initial_seed = generate_random_seed(GRID_W, GRID_H, SEED_DENSITY);
+	GridSeed initial_seed = generate_template_seed(GRID_W, GRID_H, PATTERNS[0].cells);
 	Settings settings;
 	settings.offset_y = 0;
 	settings.offset_x = 0;
-	settings.pixels_per_cell = 10;
+	settings.pixels_per_cell = 1;
 	settings.generation_loop_ms = 200;
 	
 	input_thread = std::thread([&]() {
